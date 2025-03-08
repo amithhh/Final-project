@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:rive_animation/screens/entryPoint/entry_point.dart';
 import 'sign_in_form.dart';
-import 'package:rive_animation/screens/onboding/course.dart';
+import 'sign_up_screen.dart';
+import 'package:rive_animation/screens/onboding/chatbot.dart';
 
 void showCustomDialog(BuildContext context, {required ValueChanged onValue}) {
   showGeneralDialog(
@@ -50,14 +55,14 @@ void showCustomDialog(BuildContext context, {required ValueChanged onValue}) {
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 16),
                         child: Text(
-                          "Your personal AI therapist,Anytime,Anywhere",
+                          "Your personal AI therapist, Anytime, Anywhere",
                           textAlign: TextAlign.center,
                         ),
                       ),
                       SignInForm(
                         onSignInSuccess: () {
                           Navigator.of(context).pop(); // Close the dialog
-                          Navigator.of(context).push(
+                          Navigator.of(context).pushReplacement(
                             MaterialPageRoute(
                               builder: (context) => ChatbotScreen(),
                             ),
@@ -66,9 +71,7 @@ void showCustomDialog(BuildContext context, {required ValueChanged onValue}) {
                       ),
                       const Row(
                         children: [
-                          Expanded(
-                            child: Divider(),
-                          ),
+                          Expanded(child: Divider()),
                           Padding(
                             padding: EdgeInsets.symmetric(horizontal: 16),
                             child: Text(
@@ -93,7 +96,14 @@ void showCustomDialog(BuildContext context, {required ValueChanged onValue}) {
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
                           IconButton(
-                            onPressed: () {},
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => SignUpScreen(),
+                                ),
+                              );
+                            },
                             padding: EdgeInsets.zero,
                             icon: SvgPicture.asset(
                               "assets/icons/email_box.svg",
@@ -102,16 +112,9 @@ void showCustomDialog(BuildContext context, {required ValueChanged onValue}) {
                             ),
                           ),
                           IconButton(
-                            onPressed: () {},
-                            padding: EdgeInsets.zero,
-                            icon: SvgPicture.asset(
-                              "assets/icons/apple_box.svg",
-                              height: 64,
-                              width: 64,
-                            ),
-                          ),
-                          IconButton(
-                            onPressed: () {},
+                            onPressed: () async {
+                              await signInWithGoogle(context);
+                            },
                             padding: EdgeInsets.zero,
                             icon: SvgPicture.asset(
                               "assets/icons/google_box.svg",
@@ -120,6 +123,26 @@ void showCustomDialog(BuildContext context, {required ValueChanged onValue}) {
                             ),
                           ),
                         ],
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 20),
+                        child: TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) => SignUpScreen(),
+                              ),
+                            );
+                          },
+                          child: const Text(
+                            "Don't have an account? Sign Up",
+                            style: TextStyle(
+                              color: Colors.blue,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -137,7 +160,7 @@ void showCustomDialog(BuildContext context, {required ValueChanged onValue}) {
                       color: Colors.black,
                     ),
                   ),
-                )
+                ),
               ],
             ),
           ),
@@ -145,15 +168,61 @@ void showCustomDialog(BuildContext context, {required ValueChanged onValue}) {
       );
     },
     transitionBuilder: (_, anim, __, child) {
-      Tween<Offset> tween;
-      tween = Tween(begin: const Offset(0, -1), end: Offset.zero);
-
       return SlideTransition(
-        position: tween.animate(
+        position: Tween(begin: const Offset(0, -1), end: Offset.zero).animate(
           CurvedAnimation(parent: anim, curve: Curves.easeInOut),
         ),
         child: child,
       );
     },
   ).then(onValue);
+}
+Future<void> signInWithGoogle(BuildContext context) async {
+  try {
+    final GoogleSignIn googleSignIn = GoogleSignIn(
+      clientId: kIsWeb ? "416376832708-jrnfdf0o575qlvduilq6lrcegpodr5e9.apps.googleusercontent.com" : null,
+      scopes:['email',
+        'https://www.googleapis.com/auth/userinfo.profile'],
+    );
+
+    final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+    
+    if (googleUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Google sign-in was canceled")),
+      );
+      return;
+    }
+
+    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+    final OAuthCredential credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+
+    final UserCredential userCredential =
+        await FirebaseAuth.instance.signInWithCredential(credential);
+    final User? user = userCredential.user;
+
+    if (user != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Welcome, ${user.displayName}!")),
+      );
+      
+      Navigator.of(context).pop(); // Close sign-in dialog
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => EntryPoint()), // Redirect after login
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Google Sign-In Failed: No user found.")),
+      );
+    }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Google Sign-In Failed: ${e.toString()}")),
+    );
+    print("Google Sign-In Error: $e");
+  }
 }

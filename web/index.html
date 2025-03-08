@@ -25,7 +25,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="flutter_upgrde_app">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
-
+  <meta name="google-signin-client_id" content="416376832708-jrnfdf0o575qlvduilq6lrcegpodr5e9.apps.googleusercontent.com">
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
@@ -34,7 +34,7 @@
 
   <script>
     // The value below is injected by flutter build, do not touch.
-    const serviceWorkerVersion = null;
+    const serviceWorkerVersion = "{{flutter_service_worker_version}}";
   </script>
   <!-- This script adds the flutter initialization JS code -->
   <script src="flutter.js" defer></script>
@@ -55,5 +55,19 @@
       });
     });
   </script>
+  <script>
+    function loadGapi() {
+      gapi.load('auth2', function() {
+        gapi.auth2.init({
+          client_id: "416376832708-jrnfdf0o575qlvduilq6lrcegpodr5e9.apps.googleusercontent.com",
+        }).then(() => {
+          console.log(" gapi.auth2 initialized successfully!");
+        }).catch((error) => {
+          console.error("api.auth2 failed to initialize", error);
+        });
+      });
+    }
+  </script>
+  <script src="https://apis.google.com/js/platform.js?onload=loadGapi" async defer></script>
 </body>
 </html>

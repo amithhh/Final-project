@@ -89,6 +89,7 @@ dependencies:
   flutter:
     sdk: flutter
   firebase_core: any
+  cloud_firestore: any
   firebase_auth: any
   google_sign_in: any
   liquid_swipe: ^3.1.0
@@ -96,7 +97,7 @@ dependencies:
   rive: any
   flutter_svg: any
   http: ^1.2.2
-  image_picker: ^0.8.7
-  flutter_tts: ^3.6.2 
-  speech_to_text: ^6.6.2
+  image_picker: ^1.1.2
+  flutter_tts: ^4.2.2 
+  speech_to_text: ^7.0.0
  

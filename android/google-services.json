@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "416376832708",
+    "project_id": "emotion-detection-57466",
+    "storage_bucket": "emotion-detection-57466.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:416376832708:android:207d919e8b69e094f23f91",
+        "android_client_info": {
+          "package_name": "com.testing.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "416376832708-jrnfdf0o575qlvduilq6lrcegpodr5e9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCoI2WgdgSB5SXchDT83YfHbwSht61ULLE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "416376832708-jrnfdf0o575qlvduilq6lrcegpodr5e9.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "416376832708-l98eb0df48tp43droeok1m0h9aidg8lu.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.testing"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

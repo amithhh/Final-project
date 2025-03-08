@@ -5,12 +5,13 @@ import '../../../model/menu.dart';
 import 'animated_bar.dart';
 
 class BtmNavItem extends StatelessWidget {
-  const BtmNavItem(
-      {super.key,
-      required this.navBar,
-      required this.press,
-      required this.riveOnInit,
-      required this.selectedNav});
+  const BtmNavItem({
+    super.key,
+    required this.navBar,
+    required this.press,
+    required this.riveOnInit,
+    required this.selectedNav,
+  });
 
   final Menu navBar;
   final VoidCallback press;
@@ -20,11 +21,14 @@ class BtmNavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: press,
+      onTap: press, // Handles tap event
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AnimatedBar(isActive: selectedNav == navBar),
+          AnimatedBar(
+            isActive: selectedNav == navBar,
+            onTap: press, // Pass 'press' function to AnimatedBar
+          ),
           SizedBox(
             height: 36,
             width: 36,

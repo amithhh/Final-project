@@ -8,12 +8,12 @@ void main() async {
   try {
     await Firebase.initializeApp(
       options: FirebaseOptions(
-        apiKey: "AIzaSyCS2LTqFF2LnQaWhkxMKwZQctUb2GLpUCI",
-        authDomain: "final-224aa.firebaseapp.com",
-        projectId: "final-224aa",
-        storageBucket: "final-224aa.appspot.com",
-        messagingSenderId: "704182074362",
-        appId: "1:704182074362:web:d6a80610109ed635b64243",
+         apiKey: "AIzaSyBditEG6udic7Pq2AQFjsHAmMtpf2WyZ88",
+  authDomain: "emotion-detection-57466.firebaseapp.com",
+  projectId: "emotion-detection-57466",
+  storageBucket: "emotion-detection-57466.firebasestorage.app",
+  messagingSenderId: "416376832708",
+  appId: "1:416376832708:web:be02a41f66715874f23f91",
       ),
     );
     runApp(const MyApp());
