@@ -4,7 +4,6 @@ import 'rive_model.dart';
 import 'package:rive_animation/screens/onboding/chatbot.dart';
 import 'package:rive_animation/screens/Menu_direction/profile.dart';
 import 'package:rive_animation/screens/Menu_direction/notifications.dart';
-import 'package:rive_animation/screens/Menu_direction/timer.dart';
 import 'package:rive_animation/screens/Menu_direction/search.dart';
 import 'package:rive_animation/screens/home/home_screen.dart';
 import 'package:rive_animation/screens/Menu_direction/favorites.dart';
@@ -92,7 +91,7 @@ List<Menu> bottomNavItems = [
         src: "assets/RiveAssets/icons.riv",
         artboard: "TIMER",
         stateMachineName: "TIMER_Interactivity"),
-    page: const HistoryScreen(), // ✅ Fixed incorrect page
+    page: const HistoryScreen(),
   ),
   Menu(
     title: "Notification",

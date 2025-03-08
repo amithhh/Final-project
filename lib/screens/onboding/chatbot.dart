@@ -3,6 +3,9 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
 
 void main() {
   runApp(const MyApp());
@@ -32,17 +35,52 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
   final FlutterTts _flutterTts = FlutterTts();
   final stt.SpeechToText _speechToText = stt.SpeechToText();
   final TextEditingController _controller = TextEditingController();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  List<Map<String, String>> chatMessages = [];
   bool _isListening = false;
   bool _isTyping = false;
   bool _isBotTyping = false;
+  bool _isLoadingMessages = true;
+
+  List<Map<String, dynamic>> chatMessages = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchChatHistory();
+  }
 
   @override
   void dispose() {
     _flutterTts.stop();
     _controller.dispose();
     super.dispose();
+  }
+
+  /// Fetch chat history from Firestore without blocking UI
+  Future<void> _fetchChatHistory() async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return;
+
+    try {
+      final querySnapshot = await _firestore
+          .collection('chat_history')
+          .where('userId', isEqualTo: userId)
+          .orderBy('timestamp', descending: true)
+          .limit(20) // ✅ Fetch only the latest 20 messages
+          .get();
+
+      setState(() {
+        chatMessages = querySnapshot.docs
+            .map((doc) => doc.data() as Map<String, dynamic>)
+            .toList();
+        _isLoadingMessages = false;
+      });
+    } catch (e) {
+      print("Error fetching chat history: $e");
+      setState(() => _isLoadingMessages = false);
+    }
   }
 
   Future<void> _speak(String text) async {
@@ -52,70 +90,68 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
     await _flutterTts.speak(text);
   }
 
-  Future<void> _startListening() async {
-    bool available = await _speechToText.initialize();
-    if (available) {
-      setState(() => _isListening = true);
-      _speechToText.listen(onResult: (result) {
-        setState(() {
-          _controller.text = result.recognizedWords;
-          _isTyping = _controller.text.isNotEmpty;
-        });
-      });
-    }
-  }
-
-  void _stopListening() {
-    setState(() => _isListening = false);
-    _speechToText.stop();
-  }
-
   Future<void> _sendMessage(String message) async {
     if (message.isEmpty) return;
 
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return;
+
     setState(() {
-      chatMessages.add({'role': 'user', 'content': message});
+      chatMessages.insert(0, {'role': 'user', 'message': message});
       _controller.clear();
       _isTyping = false;
       _isBotTyping = true;
     });
 
-    final data = {
-      "model": "llama3",
-      "messages": [
-        {"role": "user", "content": message}
-      ],
-      "stream": false,
-    };
+    // Save user message to Firestore
+    await _firestore.collection('chat_history').add({
+      'userId': userId,
+      'role': 'user',
+      'message': message,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
 
+    final botResponse = await fetchChatResponse(message);
+
+    // Save bot response to Firestore
+    await _firestore.collection('chat_history').add({
+      'userId': userId,
+      'role': 'bot',
+      'message': botResponse,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+
+    setState(() {
+      chatMessages.insert(0, {'role': 'bot', 'message': botResponse});
+      _isBotTyping = false;
+    });
+
+    _speak(botResponse);
+  }
+
+  /// Fetches chatbot response with a 5-second timeout
+  Future<String> fetchChatResponse(String message) async {
     try {
-      final response = await http.post(
-        Uri.parse("http://localhost:11434/api/chat"),
-        headers: {"Content-Type": "application/json"},
-        body: json.encode(data),
-      );
+      final response = await http
+          .post(
+            Uri.parse("http://localhost:11434/api/chat"),
+            headers: {"Content-Type": "application/json"},
+            body: json.encode({
+              "model": "llama3",
+              "messages": [{"role": "user", "content": message}],
+              "stream": false
+            }),
+          )
+          .timeout(const Duration(seconds: 15), onTimeout: () => throw TimeoutException("Server took too long to respond."));
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        final botResponse = responseData["message"]["content"] ?? "I couldn't understand that.";
-
-        setState(() {
-          chatMessages.add({'role': 'bot', 'content': botResponse});
-          _isBotTyping = false;
-        });
-
-        _speak(botResponse);
+        return responseData["message"]["content"] ?? "I couldn't understand that.";
       } else {
-        setState(() {
-          chatMessages.add({'role': 'bot', 'content': "Error: Unable to fetch response."});
-          _isBotTyping = false;
-        });
+        return "Error fetching response.";
       }
     } catch (e) {
-      setState(() {
-        chatMessages.add({'role': 'bot', 'content': "Error: ${e.toString()}"}); 
-        _isBotTyping = false;
-      });
+      return "Error: ${e.toString()}";
     }
   }
 
@@ -132,43 +168,35 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
         ),
         child: Column(
           children: [
-            const SizedBox(height: 40), // Space for status bar
+            const SizedBox(height: 40),
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(8),
-                itemCount: chatMessages.length + (_isBotTyping ? 1 : 0),
-                itemBuilder: (context, index) {
-                  if (index == chatMessages.length) {
-                    return _typingIndicator();
-                  }
-
-                  final message = chatMessages[index];
-                  final isUser = message["role"] == 'user';
-                  return Align(
-                    alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: isUser ? Colors.blueAccent : Colors.white,
-                        borderRadius: BorderRadius.only(
-                          topLeft: const Radius.circular(15),
-                          topRight: const Radius.circular(15),
-                          bottomLeft: isUser ? const Radius.circular(15) : Radius.zero,
-                          bottomRight: isUser ? Radius.zero : const Radius.circular(15),
-                        ),
-                      ),
-                      child: Text(
-                        message["content"] ?? '',
-                        style: TextStyle(
-                          color: isUser ? Colors.white : Colors.black87,
-                          fontSize: 16,
-                        ),
-                      ),
+              child: _isLoadingMessages
+                  ? const Center(child: CircularProgressIndicator()) // ✅ Show a loader while messages load
+                  : ListView.builder(
+                      reverse: true,
+                      padding: const EdgeInsets.all(8),
+                      itemCount: chatMessages.length + (_isBotTyping ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (index == chatMessages.length) return _typingIndicator();
+                        final message = chatMessages[index];
+                        final isUser = message["role"] == 'user';
+                        return Align(
+                          alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: isUser ? Colors.blueAccent : Colors.white,
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                            child: Text(
+                              message["message"],
+                              style: TextStyle(color: isUser ? Colors.white : Colors.black87, fontSize: 16),
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
             ),
             _buildChatInput(),
           ],
@@ -178,40 +206,11 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
   }
 
   Widget _typingIndicator() {
-    return Padding(
-      padding: const EdgeInsets.only(left: 16.0, bottom: 10),
+    return const Padding(
+      padding: EdgeInsets.only(left: 16.0, bottom: 10),
       child: Align(
         alignment: Alignment.centerLeft,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _dotAnimation(),
-              const SizedBox(width: 4),
-              _dotAnimation(delay: 200),
-              const SizedBox(width: 4),
-              _dotAnimation(delay: 400),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _dotAnimation({int delay = 0}) {
-    return AnimatedContainer(
-      duration: Duration(milliseconds: 800),
-      curve: Curves.easeInOut,
-      height: 6,
-      width: 6,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.grey,
+        child: Text("Bot is typing...", style: TextStyle(color: Colors.white)),
       ),
     );
   }
@@ -219,33 +218,18 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
   Widget _buildChatInput() {
     return Container(
       padding: const EdgeInsets.all(10),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
-      ),
+      decoration: const BoxDecoration(color: Colors.white),
       child: Row(
         children: [
-          IconButton(
-            icon: Icon(_isListening ? Icons.mic_off : Icons.mic, color: Colors.blueAccent),
-            onPressed: _isListening ? _stopListening : _startListening,
-          ),
           Expanded(
             child: TextField(
               controller: _controller,
-              style: const TextStyle(color: Colors.black),
-              decoration: const InputDecoration(
-                hintText: 'Type a message...',
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              ),
+              decoration: const InputDecoration(hintText: 'Type a message...', border: InputBorder.none),
               onChanged: (text) => setState(() => _isTyping = text.isNotEmpty),
               onSubmitted: (text) => _sendMessage(text),
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.send, color: Colors.blueAccent),
-            onPressed: _isTyping ? () => _sendMessage(_controller.text) : null,
-          ),
+          IconButton(icon: const Icon(Icons.send, color: Colors.blueAccent), onPressed: _isTyping ? () => _sendMessage(_controller.text) : null),
         ],
       ),
     );

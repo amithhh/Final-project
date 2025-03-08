@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:rive_animation/screens/entryPoint/entry_point.dart';
 import 'sign_in_form.dart';
 import 'sign_up_screen.dart';
@@ -61,7 +62,7 @@ void showCustomDialog(BuildContext context, {required ValueChanged onValue}) {
                       ),
                       SignInForm(
                         onSignInSuccess: () {
-                          Navigator.of(context).pop(); // Close the dialog
+                          Navigator.of(context).pop(); // ✅ Close the dialog
                           Navigator.of(context).pushReplacement(
                             MaterialPageRoute(
                               builder: (context) => ChatbotScreen(),
@@ -88,7 +89,7 @@ void showCustomDialog(BuildContext context, {required ValueChanged onValue}) {
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 24),
                         child: Text(
-                          "Sign up with Email, Apple or Google",
+                          "Sign up with Email or Google",
                           style: TextStyle(color: Colors.black54),
                         ),
                       ),
@@ -147,20 +148,6 @@ void showCustomDialog(BuildContext context, {required ValueChanged onValue}) {
                     ],
                   ),
                 ),
-                const Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: -48,
-                  child: CircleAvatar(
-                    radius: 16,
-                    backgroundColor: Colors.white,
-                    child: Icon(
-                      Icons.close,
-                      size: 20,
-                      color: Colors.black,
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
@@ -177,16 +164,16 @@ void showCustomDialog(BuildContext context, {required ValueChanged onValue}) {
     },
   ).then(onValue);
 }
+
+// 🔹 Improved Google Sign-In with Firestore Integration
 Future<void> signInWithGoogle(BuildContext context) async {
   try {
     final GoogleSignIn googleSignIn = GoogleSignIn(
-      clientId: kIsWeb ? "416376832708-jrnfdf0o575qlvduilq6lrcegpodr5e9.apps.googleusercontent.com" : null,
-      scopes:['email',
-        'https://www.googleapis.com/auth/userinfo.profile'],
+      scopes: ['email', 'https://www.googleapis.com/auth/userinfo.profile'],
     );
 
     final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-    
+
     if (googleUser == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Google sign-in was canceled")),
@@ -206,13 +193,21 @@ Future<void> signInWithGoogle(BuildContext context) async {
     final User? user = userCredential.user;
 
     if (user != null) {
+      // ✅ Store user info in Firestore
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'name': user.displayName,
+        'email': user.email,
+        'profilePicture': user.photoURL,
+        'lastLogin': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true)); // ✅ Prevents overwriting existing data
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Welcome, ${user.displayName}!")),
       );
-      
-      Navigator.of(context).pop(); // Close sign-in dialog
+
+      Navigator.of(context).pop(); // ✅ Close sign-in dialog
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => EntryPoint()), // Redirect after login
+        MaterialPageRoute(builder: (context) => EntryPoint()), // ✅ Redirect to Home
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -223,6 +218,6 @@ Future<void> signInWithGoogle(BuildContext context) async {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("Google Sign-In Failed: ${e.toString()}")),
     );
-    print("Google Sign-In Error: $e");
+    debugPrint("Google Sign-In Error: $e");
   }
 }
